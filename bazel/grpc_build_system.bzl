@@ -43,9 +43,10 @@ def if_not_windows(a):
         "//conditions:default": a,
     })
 
-def if_mac(a):
+def if_windows(a):
     return select({
-        "//:mac_x86_64": a,
+        "//:windows": a,
+        "//:windows_msvc": a,
         "//conditions:default": [],
     })
 
@@ -123,7 +124,6 @@ def grpc_cc_library(
         visibility = None,
         alwayslink = 0,
         data = [],
-        use_cfstream = False,
         tags = [],
         linkstatic = False):
     """An internal wrapper around cc_library.
@@ -143,19 +143,14 @@ def grpc_cc_library(
       visibility: The visibility of the target.
       alwayslink: Whether to enable alwayslink on the cc_library.
       data: Data dependencies.
-      use_cfstream: Whether to use cfstream.
       tags: Tags to apply to the rule.
       linkstatic: Whether to enable linkstatic on the cc_library.
     """
     visibility = _update_visibility(visibility)
     copts = []
-    if use_cfstream:
-        copts = if_mac(["-DGRPC_CFSTREAM"])
     if language.upper() == "C":
         copts = copts + if_not_windows(["-std=c99"])
-    linkopts = if_not_windows(["-pthread"])
-    if use_cfstream:
-        linkopts = linkopts + if_mac(["-framework CoreFoundation"])
+    linkopts = if_not_windows(["-pthread"]) + if_windows(["-defaultlib:ws2_32.lib"])
 
     if select_deps:
         for select_deps_entry in select_deps:
@@ -288,7 +283,6 @@ def grpc_cc_test(name, srcs = [], deps = [], external_deps = [], args = [], data
         copts: Add these to the compiler invocation.
         linkstatic: link the binary in static mode
     """
-    copts = copts + if_mac(["-DGRPC_CFSTREAM"])
     if language.upper() == "C":
         copts = copts + if_not_windows(["-std=c99"])
 
@@ -300,7 +294,7 @@ def grpc_cc_test(name, srcs = [], deps = [], external_deps = [], args = [], data
         "data": data,
         "deps": deps + _get_external_deps(external_deps),
         "copts": GRPC_DEFAULT_COPTS + copts,
-        "linkopts": if_not_windows(["-pthread"]),
+        "linkopts": if_not_windows(["-pthread"]) + if_windows(["-defaultlib:ws2_32.lib"]),
         "size": size,
         "timeout": timeout,
         "exec_compatible_with": exec_compatible_with,
